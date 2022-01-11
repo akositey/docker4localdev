@@ -1,0 +1,63 @@
+version: "3"
+
+services:
+    traefik:
+        image: traefik:v2.2
+        container_name: "${DOCKER_NAME}_traefik"
+        command:
+            - --providers.docker=true
+            - --api.insecure=true
+            - --providers.file.filename=/root/.config/ssl.toml
+            - --entrypoints.web.address=:80
+            - --entrypoints.web.http.redirections.entryPoint.to=websecure
+            - --entrypoints.web.http.redirections.entryPoint.scheme=https
+            - --entrypoints.web.http.redirections.entrypoint.permanent=true
+            - --entrypoints.websecure.address=:443
+        restart: always
+        networks:
+            - traefik
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./traefik-ssl.toml:/root/.config/ssl.toml
+            - ./certs/:/certs/
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+            - "traefik.http.routers.traefik.entrypoints=websecure"
+            - "traefik.http.routers.traefik.rule=Host(`${DOCKER_BASE_URL}`)"
+            - "traefik.http.routers.traefik.tls=true"
+
+    portainer:
+        image: portainer/portainer
+        container_name: "${DOCKER_NAME}_portainer"
+        command: --no-auth -H unix:///var/run/docker.sock
+        restart: unless-stopped
+        networks:
+            - traefik
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.${DOCKER_NAME}_portainer.entrypoints=websecure"
+            - "traefik.http.routers.${DOCKER_NAME}_portainer.rule=Host(`portainer.${DOCKER_BASE_URL}`)"
+            - "traefik.http.routers.${DOCKER_NAME}_portainer.tls=true"
+            - "traefik.docker.network=traefik"
+
+    whoami:
+        image: containous/whoami
+        container_name: "${DOCKER_NAME}_whoami"
+        restart: unless-stopped
+        networks:
+            - traefik
+        labels:
+            - "traefik.http.routers.${DOCKER_NAME}_whoami.entrypoints=websecure"
+            - "traefik.http.routers.${DOCKER_NAME}_whoami.rule=Host(`whoami.${DOCKER_BASE_URL}`)"
+            - "traefik.http.routers.${DOCKER_NAME}_whoami.tls=true"
+            - "traefik.docker.network=traefik"
+
+networks:
+    traefik:
+        external: true
