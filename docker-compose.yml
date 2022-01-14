@@ -1,62 +1,78 @@
-version: "3"
+version: '3.7'
 
 services:
     traefik:
-        image: traefik:v2.2
-        container_name: "${DOCKER_NAME}_traefik"
+        image: traefik:v2.5
+        container_name: '${DOCKER_NAME}_traefik'
         command:
+            - --log.level=DEBUG
+            - --api.insecure=false
             - --providers.docker=true
-            - --api.insecure=true
+            - --providers.docker.exposedbydefault=false
+            - --entrypoints.${TRAEFIK_ENTRYPOINT}.address=:80
+            - --providers.docker
+            - --api
             - --providers.file.filename=/root/.config/ssl.toml
-            - --entrypoints.web.address=:80
-            - --entrypoints.web.http.redirections.entryPoint.to=websecure
-            - --entrypoints.web.http.redirections.entryPoint.scheme=https
-            - --entrypoints.web.http.redirections.entrypoint.permanent=true
-            - --entrypoints.websecure.address=:443
+            - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entryPoint.to=${TRAEFIK_SECURE_ENTRYPOINT}
+            - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entryPoint.scheme=https
+            - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entrypoint.permanent=true
+            - --entrypoints.${TRAEFIK_SECURE_ENTRYPOINT}.address=:443
         restart: always
         networks:
-            - traefik
+            - ${TRAEFIK_NETWORK}
         ports:
-            - "80:80"
-            - "443:443"
+            - '80:80'
+            - '443:443'
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./traefik-ssl.toml:/root/.config/ssl.toml
             - ./certs/:/certs/
         labels:
-            - "traefik.enable=true"
+            - 'traefik.enable=true'
+            - 'traefik.http.routers.traefik.rule=Host(`${DOCKER_BASE_URL}`)'
+            - "traefik.http.routers.traefik.service=api@internal"
+            - "traefik.http.routers.traefik.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
             - "traefik.http.services.traefik.loadbalancer.server.port=8080"
-            - "traefik.http.routers.traefik.entrypoints=websecure"
-            - "traefik.http.routers.traefik.rule=Host(`${DOCKER_BASE_URL}`)"
-            - "traefik.http.routers.traefik.tls=true"
+            - 'traefik.http.routers.traefik.tls=true'
+    
+    # portainer:
+    #     image: portainer/portainer
+    #     container_name: '${DOCKER_NAME}_portainer'
+    #     command: --no-auth -H unix:///var/run/docker.sock
+    #     restart: unless-stopped
+    #     networks:
+    #         - traefik
+    #     volumes:
+    #         - /var/run/docker.sock:/var/run/docker.sock
+    #     labels:
+    #         - 'traefik.enable=true'
+    #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.entrypoints=websecure'
+    #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.rule=Host(`portainer.${DOCKER_BASE_URL}`)'
+    #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.tls=true'
+    #         - 'traefik.docker.network=traefik'
 
-    portainer:
-        image: portainer/portainer
-        container_name: "${DOCKER_NAME}_portainer"
-        command: --no-auth -H unix:///var/run/docker.sock
+    smtp4dev:
+        container_name: '${DOCKER_NAME}_smtp4dev'
+        image: rnwood/smtp4dev:v3
         restart: unless-stopped
-        networks:
-            - traefik
+        ports:
+            - '3000:80'
+            - '25:25'
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
+            - smtp4dev-data:/smtp4dev
+        networks:
+            - ${TRAEFIK_NETWORK}
         labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.${DOCKER_NAME}_portainer.entrypoints=websecure"
-            - "traefik.http.routers.${DOCKER_NAME}_portainer.rule=Host(`portainer.${DOCKER_BASE_URL}`)"
-            - "traefik.http.routers.${DOCKER_NAME}_portainer.tls=true"
-            - "traefik.docker.network=traefik"
+            - "traefik.http.services.${DOCKER_NAME}_smtp4dev.loadbalancer.server.port=80"
+            - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.rule=Host(`smtp4dev.${DOCKER_BASE_URL}`)"
+            - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.service=${DOCKER_NAME}_smtp4dev"
+            - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+            - 'traefik.http.routers.${DOCKER_NAME}-smtp4dev.tls=true'
+            - "traefik.docker.network=${TRAEFIK_NETWORK}"
 
-    whoami:
-        image: containous/whoami
-        container_name: "${DOCKER_NAME}_whoami"
-        restart: unless-stopped
-        networks:
-            - traefik
-        labels:
-            - "traefik.http.routers.${DOCKER_NAME}_whoami.entrypoints=websecure"
-            - "traefik.http.routers.${DOCKER_NAME}_whoami.rule=Host(`whoami.${DOCKER_BASE_URL}`)"
-            - "traefik.http.routers.${DOCKER_NAME}_whoami.tls=true"
-            - "traefik.docker.network=traefik"
+volumes:
+  smtp4dev-data:
 
 networks:
     traefik:
