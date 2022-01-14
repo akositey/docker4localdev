@@ -12,12 +12,14 @@ I think it's safe to assume that you can apply the same principle to any Unix sy
 
 ## Available domains
 
-* Traefik Dashboard: https://docker.localdev
-* Portainer: https://portainer.docker.localdev
-* Whoami: https://whoami.docker.localdev
+* traefik Dashboard: https://docker.localdev
+* portainer: https://portainer.docker.localdev
+* smtp4dev: https://smtp4dev.docker.localdev (if you'l enable it in compose file)
 
 ## Getting Started
 
+### Copy .env.dist to .env
+`cp .env.dist .env` should work. 
 ### Generate your own _locally-trusted_ certificate.
 
 Install [Mkcert](https://github.com/FiloSottile/mkcert) on your system.
@@ -55,12 +57,14 @@ Ex. using docker-compose
     nginx:
         labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.my-app_web.entrypoints=websecure"
-            - "traefik.http.routers.my-app_web.rule=Host(`my-app.docker.localdev`)"
-            - "traefik.http.routers.my-app_web.tls=true"
+            - "traefik.http.services.my_nginx.loadbalancer.server.port=80"
+            - "traefik.http.routers.my-nginx.rule=Host(`my-app1.docker.localdev`)"
+            - "traefik.http.routers.my-nginx.service=my_nginx"
+            - "traefik.http.routers.my-nginx.entrypoints=websecure"
+            - 'traefik.http.routers.my-nginx.tls=true'
             - "traefik.docker.network=traefik"
 ```
-after you reload your containers, you should be able to access it. In this example: https://my-app.docker.localdev
+after you reload your containers, you should be able to access it. In this example: https://my-app1.docker.localdev
 
 ## Credits
 This based on this article on [Medium](https://medium.com/soulweb-academy/docker-local-dev-stack-with-traefik-https-dnsmasq-locally-trusted-certificate-for-ubuntu-20-04-5f036c9af83d). Please visit it if you need more explanations. This is just a modified version of that tutorial.
