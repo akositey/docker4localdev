@@ -70,10 +70,26 @@ services:
             - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
             - 'traefik.http.routers.${DOCKER_NAME}-smtp4dev.tls=true'
             - "traefik.docker.network=${TRAEFIK_NETWORK}"
+    
+    db:
+        container_name: ${DOCKER_NAME}_db
+        image: ${DB_SERVER_IMAGE}
+        restart: 'unless-stopped'
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+        volumes:
+            - mysql-data:/var/lib/mysql
+        networks:
+            - traefik
+        ports:
+            - "${DB_EXTERNAL_PORT}:3306"
 
 volumes:
-  smtp4dev-data:
-
+    smtp4dev-data:
+    mysql-data:
 networks:
     traefik:
         external: true
