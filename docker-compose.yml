@@ -73,7 +73,11 @@ services:
     
     db:
         container_name: ${DOCKER_NAME}_db
-        image: ${DB_SERVER_IMAGE}
+        build:
+            context: ./
+            dockerfile: docker/db/Dockerfile
+            args:
+                - DB_SERVER_IMAGE=${DB_SERVER_IMAGE}
         restart: 'unless-stopped'
         environment:
             MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -90,6 +94,7 @@ services:
 volumes:
     smtp4dev-data:
     mysql-data:
+    # mysql-data2:
 networks:
     traefik:
         external: true
