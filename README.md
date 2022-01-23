@@ -26,11 +26,10 @@ Install [Mkcert](https://github.com/FiloSottile/mkcert) on your system.
 You can just download from the [releases](https://github.com/FiloSottile/mkcert/releases)
 Then move it to your `/usr/local/bin/`
 Once installed, run `mkcert -install`.
-Then generate your self-signed certificates:
+
+Inside this directory, generate your self-signed certificates:
 
 `mkcert -key-file ./certs/key.pem -cert-file ./certs/cert.pem localdev 'docker.localdev' '*.docker.localdev'`
-
-Move the generated certificates (`cert.pem`, `key.pem`) to the folder `certs/`
 
 ### Configure `dnsmasq` to resolve localdev
 
@@ -46,8 +45,16 @@ Tell dnsmasq to resolve localdev as 127.0.0.1
 ```
 address=/.localdev/127.0.0.1
 ```
-Reload Network
-`sudo systemctl reload NetworkManager`
+Create resolver for the newly added address:
+```
+sudo mkdir -v /etc/resolver && sudo bash -c 'echo "nameserver 127.0.0.1" > /etc/resolver/localdev'
+```
+Delete symlinked resolv.conf
+```
+sudo rm /etc/resolv.conf
+```
+Restart Network
+`sudo systemctl restart NetworkManager`
 
 ### Configure your apps to use `traefik`
 Ex. using docker-compose
