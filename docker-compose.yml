@@ -2,17 +2,16 @@ version: '3.7'
 
 services:
     traefik:
-        image: traefik:v2.5
+        image: traefik:v2.6
         container_name: '${DOCKER_NAME}_traefik'
         command:
             - --log.level=DEBUG
+            - --api.dashboard=true
             - --api.insecure=false
             - --providers.docker=true
             - --providers.docker.exposedbydefault=false
-            - --entrypoints.${TRAEFIK_ENTRYPOINT}.address=:80
-            - --providers.docker
-            - --api
             - --providers.file.filename=/root/.config/ssl.toml
+            - --entrypoints.${TRAEFIK_ENTRYPOINT}.address=:80
             - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entryPoint.to=${TRAEFIK_SECURE_ENTRYPOINT}
             - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entryPoint.scheme=https
             - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entrypoint.permanent=true
@@ -24,16 +23,16 @@ services:
             - '80:80'
             - '443:443'
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
+            - /var/run/docker.sock:/var/run/docker.sock:ro
             - ./traefik-ssl.toml:/root/.config/ssl.toml
             - ./certs/:/certs/
         labels:
             - 'traefik.enable=true'
-            - 'traefik.http.routers.traefik.rule=Host(`${DOCKER_BASE_URL}`)'
-            - "traefik.http.routers.traefik.service=api@internal"
-            - "traefik.http.routers.traefik.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+            - 'traefik.http.routers.api.rule=Host(`${DOCKER_BASE_URL}`) || Host(`192.168.122.10`)'
+            - "traefik.http.routers.api.service=api@internal"
+            - "traefik.http.routers.api.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+            - 'traefik.http.routers.api.tls=true'
             - "traefik.http.services.traefik.loadbalancer.server.port=8080"
-            - 'traefik.http.routers.traefik.tls=true'
     
     # portainer:
     #     image: portainer/portainer
@@ -51,24 +50,19 @@ services:
     #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.tls=true'
     #         - 'traefik.docker.network=traefik'
 
-    smtp4dev:
-        container_name: '${DOCKER_NAME}_smtp4dev'
-        image: rnwood/smtp4dev:v3
+    mailhog:
+        container_name: '${DOCKER_NAME}_mailhog'
+        image: mailhog/mailhog
         restart: unless-stopped
-        ports:
-            - '3000:80'
-            - '25:25'
-        volumes:
-            - smtp4dev-data:/smtp4dev
         networks:
             - ${TRAEFIK_NETWORK}
         labels:
             - "traefik.enable=true"
-            - "traefik.http.services.${DOCKER_NAME}_smtp4dev.loadbalancer.server.port=80"
-            - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.rule=Host(`smtp4dev.${DOCKER_BASE_URL}`)"
-            - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.service=${DOCKER_NAME}_smtp4dev"
-            - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
-            - 'traefik.http.routers.${DOCKER_NAME}-smtp4dev.tls=true'
+            - "traefik.http.services.${DOCKER_NAME}_mailhog.loadbalancer.server.port=8025"
+            - "traefik.http.routers.${DOCKER_NAME}-mailhog.rule=Host(`mailhog.${DOCKER_BASE_URL}`)"
+            - "traefik.http.routers.${DOCKER_NAME}-mailhog.service=${DOCKER_NAME}_mailhog"
+            - "traefik.http.routers.${DOCKER_NAME}-mailhog.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.tls=true'
             - "traefik.docker.network=${TRAEFIK_NETWORK}"
     
     db:
@@ -87,14 +81,50 @@ services:
         volumes:
             - mysql-data:/var/lib/mysql
         networks:
-            - traefik
+            - ${TRAEFIK_NETWORK}
         ports:
             - "${DB_EXTERNAL_PORT}:3306"
 
+    # phpmyadmin:
+    #     container_name: ${DOCKER_NAME}_phpmyadmin
+    #     image: phpmyadmin
+    #     restart: 'unless-stopped'
+    #     labels:
+    #         - "traefik.enable=true"
+    #         - "traefik.http.services.${DOCKER_NAME}_phpmyadmin.loadbalancer.server.port=80"
+    #         - "traefik.http.routers.${DOCKER_NAME}-phpmyadmin.rule=Host(`phpmyadmin.${DOCKER_BASE_URL}`)"
+    #         - "traefik.http.routers.${DOCKER_NAME}-phpmyadmin.service=${DOCKER_NAME}_phpmyadmin"
+    #         - "traefik.http.routers.${DOCKER_NAME}-phpmyadmin.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+    #         - 'traefik.http.routers.${DOCKER_NAME}-phpmyadmin.tls=true'
+    #         - "traefik.docker.network=${TRAEFIK_NETWORK}"
+    #     environment:
+    #         - PMA_HOST=db
+    #         - UPLOAD_LIMIT=3000000000
+    #     networks:
+    #         - ${TRAEFIK_NETWORK}
+
+    # buggregator:
+    #     container_name: ${DOCKER_NAME}_dumps
+    #     image: butschster/buggregator:latest
+    #     ports:
+    #         - 23517:8000
+    #         - 1025:1025
+    #         - 9912:9912
+    #         - 9913:9913
+    #     restart: unless-stopped
+    #     networks:
+    #         - ${TRAEFIK_NETWORK}
+    #     labels:
+    #         - "traefik.enable=true"
+    #         - "traefik.http.services.${DOCKER_NAME}_dumps.loadbalancer.server.port=8000"
+    #         - "traefik.http.routers.${DOCKER_NAME}-dumps.rule=Host(`dumps.${DOCKER_BASE_URL}`)"
+    #         - "traefik.http.routers.${DOCKER_NAME}-dumps.service=${DOCKER_NAME}_dumps"
+    #         - "traefik.http.routers.${DOCKER_NAME}-dumps.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+    #         - 'traefik.http.routers.${DOCKER_NAME}-dumps.tls=true'
+    #         - "traefik.docker.network=${TRAEFIK_NETWORK}"
+
 volumes:
-    smtp4dev-data:
     mysql-data:
-    # mysql-data2:
 networks:
     traefik:
         external: true
