@@ -24,7 +24,7 @@ services:
             - '80:80'
             - '443:443'
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
+            - /var/run/docker.sock:/var/run/docker.sock:ro
             - ./traefik-ssl.toml:/root/.config/ssl.toml
             - ./certs/:/certs/
         labels:
@@ -55,13 +55,38 @@ services:
     #         - 'traefik.http.routers.${DOCKER_NAME}-smtp4dev.tls=true'
     #         - "traefik.docker.network=traefik"
 
-    portainer:
-        image: portainer/portainer
-        container_name: "${DOCKER_NAME}_portainer"
-        command: --no-auth -H unix:///var/run/docker.sock
+    mailhog:
+        container_name: '${DOCKER_NAME}_mailhog'
+        image: mailhog/mailhog
         restart: unless-stopped
         networks:
-            - traefik
+            proxy:
+                aliases:
+                    - mailhog.docker.localdev
+        labels:
+            - 'traefik.enable=true'
+            - 'traefik.http.services.${DOCKER_NAME}_mailhog.loadbalancer.server.port=8025'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.rule=Host(`mailhog.${DOCKER_BASE_URL}`)'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.service=${DOCKER_NAME}_mailhog'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.tls=true'
+            - 'traefik.docker.network=${TRAEFIK_NETWORK}'
+        # ports:
+        #     - 25:1025
+
+    db:
+        container_name: ${DOCKER_NAME}_db
+        build:
+            context: ./
+            dockerfile: docker/db/Dockerfile
+            args:
+                - DB_SERVER_IMAGE=${DB_SERVER_IMAGE}
+        restart: 'unless-stopped'
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         labels:
@@ -73,6 +98,172 @@ services:
             - 'traefik.http.routers.${DOCKER_NAME}-portainer.tls=true'
             - "traefik.docker.network=${TRAEFIK_NETWORK}"
 
+    # portainer:
+    #     image: portainer/portainer
+    #     container_name: '${DOCKER_NAME}_portainer'
+    #     command: --no-auth -H unix:///var/run/docker.sock
+    #     restart: unless-stopped
+    #     networks:
+    #         - proxy
+    #     volumes:
+    #         - /var/run/docker.sock:/var/run/docker.sock
+    #     labels:
+    #         - 'traefik.enable=true'
+    #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.entrypoints=websecure'
+    #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.rule=Host(`portainer.${DOCKER_BASE_URL}`)'
+    #         - 'traefik.http.routers.${DOCKER_NAME}_portainer.tls=true'
+    #         - 'traefik.docker.network=traefik'
+
+    # adminer:
+    #     container_name: '${DOCKER_NAME}_adminer'
+    #     image: adminer
+    #     restart: 'unless-stopped'
+    #     environment:
+    #         ADMINER_DESIGN: 'hydra'
+    #     networks:
+    #         - proxy
+    #     labels:
+    #         - "traefik.enable=true"
+    #         - "traefik.http.services.${DOCKER_NAME}_adminer.loadbalancer.server.port=8080"
+    #         - "traefik.http.routers.${DOCKER_NAME}-adminer.rule=Host(`adminer.${DOCKER_BASE_URL}`)"
+    #         - "traefik.http.routers.${DOCKER_NAME}-adminer.service=${DOCKER_NAME}_adminer"
+    #         - "traefik.http.routers.${DOCKER_NAME}-adminer.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+    #         - 'traefik.http.routers.${DOCKER_NAME}-adminer.tls=true'
+    #         - "traefik.docker.network=${TRAEFIK_NETWORK}"
+
+    # phpmyadmin:
+    #     container_name: ${DOCKER_NAME}_phpmyadmin
+    #     image: phpmyadmin
+    #     restart: 'unless-stopped'
+    #     labels:
+    #         - "traefik.enable=true"
+    #         - "traefik.http.services.${DOCKER_NAME}_phpmyadmin.loadbalancer.server.port=80"
+    #         - "traefik.http.routers.${DOCKER_NAME}-phpmyadmin.rule=Host(`phpmyadmin.${DOCKER_BASE_URL}`)"
+    #         - "traefik.http.routers.${DOCKER_NAME}-phpmyadmin.service=${DOCKER_NAME}_phpmyadmin"
+    #         - "traefik.http.routers.${DOCKER_NAME}-phpmyadmin.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+    #         - 'traefik.http.routers.${DOCKER_NAME}-phpmyadmin.tls=true'
+    #         - "traefik.docker.network=${TRAEFIK_NETWORK}"
+    #     environment:
+    #         - PMA_HOST=db
+    #         - UPLOAD_LIMIT=3000000000
+    #     networks:
+    #         - proxy
+
+    # buggregator:
+    #     container_name: ${DOCKER_NAME}_dumps
+    #     image: butschster/buggregator:latest
+    #     ports:
+    #         - 23517:8000
+    #         - 1025:1025
+    #         - 9912:9912
+    #         - 9913:9913
+    #     restart: unless-stopped
+    #     networks:
+    #         - proxy
+    #     labels:
+    #         - "traefik.enable=true"
+    #         - "traefik.http.services.${DOCKER_NAME}_dumps.loadbalancer.server.port=8000"
+    #         - "traefik.http.routers.${DOCKER_NAME}-dumps.rule=Host(`dumps.${DOCKER_BASE_URL}`)"
+    #         - "traefik.http.routers.${DOCKER_NAME}-dumps.service=${DOCKER_NAME}_dumps"
+    #         - "traefik.http.routers.${DOCKER_NAME}-dumps.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+    #         - 'traefik.http.routers.${DOCKER_NAME}-dumps.tls=true'
+    #         - "traefik.docker.network=${TRAEFIK_NETWORK}"
+
+    # elasticsearch:
+    #     container_name: ${DOCKER_NAME}_elasticsearch
+    #     image: docker.elastic.co/elasticsearch/elasticsearch:7.12.1
+    #     environment:
+    #         - node.name=elasticsearch
+    #         - cluster.name=docker-cluster
+    #         - bootstrap.memory_lock=true
+    #         - discovery.type=single-node
+    #         - xpack.security.enabled=false
+    #         - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    #     ulimits:
+    #         memlock:
+    #             soft: -1
+    #             hard: -1
+    #     volumes:
+    #         - es-data:/usr/share/elasticsearch/data
+    #     ports:
+    #         - 9200:9200
+    #     networks:
+    #         - proxy
+    # mongodb:
+    #     container_name: ${DOCKER_NAME}_mongodb
+    #     image: "mongo:4.2"
+    #     restart: always
+    #     networks:
+    #         - proxy
+
+    # graylog:
+    #     container_name: ${DOCKER_NAME}_graylog
+    #     image: "graylog/graylog:4.3"
+    #     depends_on:
+    #         -   elasticsearch
+    #         -   mongodb
+    #     entrypoint: "/usr/bin/tini -- wait-for-it elasticsearch:9200 --  /docker-entrypoint.sh"
+    #     environment:
+    #         GRAYLOG_PASSWORD_SECRET: somepasswordpepper
+    #         # "admin" to generate a password hash, type: echo -n admin | shasum -a 256
+    #         GRAYLOG_ROOT_PASSWORD_SHA2: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+    #         GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9001"
+    #         GRAYLOG_HTTP_EXTERNAL_URI: http://graylog.${DOCKER_BASE_URL}/
+    #         GRAYLOG_ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+    #         GRAYLOG_MONGODB_URI: "mongodb://mongodb:27017/graylog"
+    #         GRAYLOG_HTTP_ENABLE_CORS: true
+    #     networks:
+    #         - proxy
+    #     labels:
+    #         - "traefik.enable=true"
+    #         - "traefik.http.services.${DOCKER_NAME}_graylog.loadbalancer.server.port=9001"
+    #         - "traefik.http.routers.${DOCKER_NAME}-graylog.rule=Host(`graylog.${DOCKER_BASE_URL}`)"
+    #         - "traefik.http.routers.${DOCKER_NAME}-graylog.service=${DOCKER_NAME}_graylog"
+    #         - "traefik.http.routers.${DOCKER_NAME}-graylog.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
+    #         - 'traefik.http.routers.${DOCKER_NAME}-graylog.tls=true'
+    #         - "traefik.docker.network=${TRAEFIK_NETWORK}"
+    #     # open for testing only
+    #     # ports:
+    #     #     - "5044:5044/tcp"   # Beats
+    #     #     - "5140:5140/udp"   # Syslog
+    #     #     - "5140:5140/tcp"   # Syslog
+    #     #     - "5555:5555/tcp"   # RAW TCP
+    #     #     - "5555:5555/udp"   # RAW TCP
+    #     #     - "9001:9001/tcp"   # Server API
+    #         # - "12201:12201/tcp" # GELF TCP
+    #         # - "12201:12201/udp" # GELF UDP
+    #     #     - "13301:13301/tcp" # Forwarder data
+    #     #     - "13302:13302/tcp" # Forwarder config
+
+    # mongo:
+    #     image: mongo
+    #     container_name: '${DOCKER_NAME}_mongo'
+    #     restart: 'unless-stopped'
+    #     environment:
+    #         MONGO_INITDB_ROOT_USERNAME: root
+    #         MONGO_INITDB_ROOT_PASSWORD: example
+    #         MONGO_INITDB_DATABASE: mongodev
+    #     ports:
+    #         - 27017:27017
+    #     networks:
+    #         - proxy
+
+    # mongo-express:
+    #     image: mongo-express
+    #     container_name: '${DOCKER_NAME}_mongo-express'
+    #     restart: 'unless-stopped'
+    #     ports:
+    #         - 8081:8081
+    #     environment:
+    #         ME_CONFIG_MONGODB_ADMINUSERNAME: root
+    #         ME_CONFIG_MONGODB_ADMINPASSWORD: example
+    #         ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+    #     networks:
+    #         - proxy
+
+volumes:
+    mysql-data:
+    es-data:
 networks:
     ${TRAEFIK_NETWORK}:
         external: true
