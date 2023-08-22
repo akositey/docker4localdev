@@ -64,13 +64,12 @@ Install `mkcert` on your system.
 You can just download from the [releases](https://github.com/FiloSottile/mkcert/releases)
 Then move it to your `/usr/local/bin/`
 Once installed, run `mkcert -install`.
-Then generate your self-signed certificates:
+
+Inside this directory, generate your self-signed certificates:
 
 `mkcert -key-file ./certs/key.pem -cert-file ./certs/cert.pem localdev 'docker.localdev' '*.docker.localdev'`
 
-Move the generated certificates (`cert.pem`, `key.pem`) to the folder `certs/`
-
-### 2. Configure `dnsmasq` to resolve localdev
+### Configure `dnsmasq` to resolve localdev
 
 Configure NetworkManager to use `dnsmasq` plugin:
 `sudo nano /etc/NetworkManager/conf.d/00-use-dnsmasq.conf`
