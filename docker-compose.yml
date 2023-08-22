@@ -1,25 +1,24 @@
-version: "3.7"
+version: '3.7'
 
 services:
     traefik:
-        image: traefik:v2.5
+        image: traefik:v2.6
         container_name: '${DOCKER_NAME}_traefik'
         command:
             - --log.level=DEBUG
+            - --api.dashboard=true
             - --api.insecure=false
             - --providers.docker=true
             - --providers.docker.exposedbydefault=false
-            - --entrypoints.${TRAEFIK_ENTRYPOINT}.address=:80
-            - --providers.docker
-            - --api
             - --providers.file.filename=/root/.config/ssl.toml
+            - --entrypoints.${TRAEFIK_ENTRYPOINT}.address=:80
             - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entryPoint.to=${TRAEFIK_SECURE_ENTRYPOINT}
             - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entryPoint.scheme=https
             - --entrypoints.${TRAEFIK_ENTRYPOINT}.http.redirections.entrypoint.permanent=true
             - --entrypoints.${TRAEFIK_SECURE_ENTRYPOINT}.address=:443
         restart: always
         networks:
-            - ${TRAEFIK_NETWORK}
+            - proxy
         ports:
             - '80:80'
             - '443:443'
@@ -29,31 +28,11 @@ services:
             - ./certs/:/certs/
         labels:
             - 'traefik.enable=true'
-            - 'traefik.http.routers.traefik.rule=Host(`${DOCKER_BASE_URL}`)'
-            - "traefik.http.routers.traefik.service=api@internal"
-            - "traefik.http.routers.traefik.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
-            - "traefik.http.services.traefik.loadbalancer.server.port=8080"
-            - 'traefik.http.routers.traefik.tls=true'
-
-    # smtp4dev:
-    #     container_name: '${DOCKER_NAME}_smtp4dev'
-    #     image: rnwood/smtp4dev:v3
-    #     restart: unless-stopped
-    #     ports:
-    #         - '3000:80'
-    #         - '25:25'
-    #     volumes:
-    #         - smtp4dev-data:/smtp4dev
-    #     networks:
-    #         - traefik
-    #     labels:
-    #         - "traefik.enable=true"
-    #         - "traefik.http.services.${DOCKER_NAME}_smtp4dev.loadbalancer.server.port=80"
-    #         - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.rule=Host(`smtp4dev.${DOCKER_BASE_URL}`)"
-    #         - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.service=${DOCKER_NAME}_smtp4dev"
-    #         - "traefik.http.routers.${DOCKER_NAME}-smtp4dev.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
-    #         - 'traefik.http.routers.${DOCKER_NAME}-smtp4dev.tls=true'
-    #         - "traefik.docker.network=traefik"
+            - 'traefik.http.routers.api.rule=Host(`${DOCKER_BASE_URL}`) || Host(`192.168.122.10`)'
+            - 'traefik.http.routers.api.service=api@internal'
+            - 'traefik.http.routers.api.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}'
+            - 'traefik.http.routers.api.tls=true'
+            - 'traefik.http.services.traefik.loadbalancer.server.port=8080'
 
     mailhog:
         container_name: '${DOCKER_NAME}_mailhog'
@@ -88,15 +67,11 @@ services:
             MYSQL_USER: ${MYSQL_USER}
             MYSQL_PASSWORD: ${MYSQL_PASSWORD}
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-        labels:
-            - "traefik.enable=true"
-            - "traefik.http.services.${DOCKER_NAME}_portainer.loadbalancer.server.port=80"
-            - "traefik.http.routers.${DOCKER_NAME}-portainer.rule=Host(`portainer.${DOCKER_BASE_URL}`)"
-            - "traefik.http.routers.${DOCKER_NAME}-portainer.service=${DOCKER_NAME}_portainer"
-            - "traefik.http.routers.${DOCKER_NAME}-portainer.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}"
-            - 'traefik.http.routers.${DOCKER_NAME}-portainer.tls=true'
-            - "traefik.docker.network=${TRAEFIK_NETWORK}"
+            - mysql-data:/var/lib/mysql
+        networks:
+            - proxy
+        ports:
+            - '${DB_EXTERNAL_PORT}:3306'
 
     # portainer:
     #     image: portainer/portainer
@@ -265,5 +240,6 @@ volumes:
     mysql-data:
     es-data:
 networks:
-    ${TRAEFIK_NETWORK}:
+    proxy:
+        name: ${TRAEFIK_NETWORK}
         external: true
