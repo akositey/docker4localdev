@@ -32,18 +32,15 @@ I've tried it on Ubuntu 20.04, Ubuntu 22.04, Debian 12, which use NetworkManager
 It has a `dnsmasq` plugin so we don't need to install a separate package.
 I think it's safe to assume that you can apply the same principles to any Linux system.
 
-## Default Containers
-
-Check `docker-compose.yml`
-
-- traefik
-- mailhog
-- mysql/mariadb
-    - you might not need this but I like to use just 1 instance of mysql server for all projects
+* traefik Dashboard: https://docker.localdev
+* portainer: https://portainer.docker.localdev
+* smtp4dev: https://smtp4dev.docker.localdev (if you'l enable it in compose file)
 
 ## Getting Started
 
-### 0. Configure `.env`
+### Copy .env.dist to .env
+`cp .env.dist .env` should work. 
+### Generate your own _locally-trusted_ certificate.
 
 `cp .env.dist .env`
 Then update the contents of `.env` especially if you're going to use mysql server
@@ -160,13 +157,16 @@ Ex: You have 2 projects `app1.docker.localdev` and `app2.docker.localdev` and yo
     ...
     # web server
     nginx:
-        networks:
-            proxy:
-                aliases:
-                    - app2.docker.localdev
-networks:
-    proxy:
-        name: ${TRAEFIK_NETWORK} #.env: TRAEFIK_NETWORK=traefik
-        external: true
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.services.my_nginx.loadbalancer.server.port=80"
+            - "traefik.http.routers.my-nginx.rule=Host(`my-app1.docker.localdev`)"
+            - "traefik.http.routers.my-nginx.service=my_nginx"
+            - "traefik.http.routers.my-nginx.entrypoints=websecure"
+            - 'traefik.http.routers.my-nginx.tls=true'
+            - "traefik.docker.network=traefik"
 ```
-After reload, try to ping app2 from app1: `docker compose exec php-fpm ping app2.docker.localdev`.
+after you reload your containers, you should be able to access it. In this example: https://my-app1.docker.localdev
+
+## Credits
+This based on this article on [Medium](https://medium.com/soulweb-academy/docker-local-dev-stack-with-traefik-https-dnsmasq-locally-trusted-certificate-for-ubuntu-20-04-5f036c9af83d). Please visit it if you need more explanations. This is just a modified version of that tutorial.
