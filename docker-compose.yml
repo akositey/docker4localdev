@@ -34,24 +34,51 @@ services:
             - 'traefik.http.routers.api.tls=true'
             - 'traefik.http.services.traefik.loadbalancer.server.port=8080'
 
-    mailhog:
-        container_name: '${DOCKER_NAME}_mailhog'
-        image: mailhog/mailhog
-        restart: unless-stopped
+    # mailhog:
+    #     container_name: '${DOCKER_NAME}_mailhog'
+    #     image: jcalonso/mailhog
+    #     restart: unless-stopped
+    #     networks:
+    #         proxy:
+    #             aliases:
+    #                 - mailhog.docker.localdev
+    #     labels:
+    #         - 'traefik.enable=true'
+    #         - 'traefik.http.services.${DOCKER_NAME}_mailhog.loadbalancer.server.port=8025'
+    #         - 'traefik.http.routers.${DOCKER_NAME}-mailhog.rule=Host(`mailhog.${DOCKER_BASE_URL}`)'
+    #         - 'traefik.http.routers.${DOCKER_NAME}-mailhog.service=${DOCKER_NAME}_mailhog'
+    #         - 'traefik.http.routers.${DOCKER_NAME}-mailhog.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}'
+    #         - 'traefik.http.routers.${DOCKER_NAME}-mailhog.tls=true'
+    #         - 'traefik.docker.network=${TRAEFIK_NETWORK}'
+    #     ports:
+    #         - 25:1025
+
+    mailcrab:
+        container_name: '${DOCKER_NAME}_mailcrab'
+        image: marlonb/mailcrab:latest
+        # environment:
+            # SMTP_PORT: 25
+            # HTTP_PORT: 25
+        #     ENABLE_TLS_AUTH: true # optionally enable TLS for the SMTP server
+        #     MAILCRAB_PREFIX: emails # optionally prefix the webinterface with a path
+        # volumes:
+        #     key.pem:/app/key.pem:ro # optionally provide your own keypair for TLS, else a pair will be generated
+        #     cert.pem:/app/cert.pem:ro
+        restart: 'unless-stopped'
+        ports:
+            - '1025:1025'
+        labels:
+            - 'traefik.enable=true'
+            - 'traefik.http.services.${DOCKER_NAME}_mailcrab.loadbalancer.server.port=1080'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailcrab.rule=Host(`mailcrab.${DOCKER_BASE_URL}`)'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailcrab.service=${DOCKER_NAME}_mailcrab'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailcrab.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}'
+            - 'traefik.http.routers.${DOCKER_NAME}-mailcrab.tls=true'
+            - 'traefik.docker.network=${TRAEFIK_NETWORK}'
         networks:
             proxy:
                 aliases:
-                    - mailhog.docker.localdev
-        labels:
-            - 'traefik.enable=true'
-            - 'traefik.http.services.${DOCKER_NAME}_mailhog.loadbalancer.server.port=8025'
-            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.rule=Host(`mailhog.${DOCKER_BASE_URL}`)'
-            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.service=${DOCKER_NAME}_mailhog'
-            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.entrypoints=${TRAEFIK_SECURE_ENTRYPOINT}'
-            - 'traefik.http.routers.${DOCKER_NAME}-mailhog.tls=true'
-            - 'traefik.docker.network=${TRAEFIK_NETWORK}'
-        # ports:
-        #     - 25:1025
+                    - mailcrab.docker.localdev
 
     db:
         container_name: ${DOCKER_NAME}_db
@@ -69,7 +96,9 @@ services:
         volumes:
             - mysql-data:/var/lib/mysql
         networks:
-            - proxy
+            proxy:
+                aliases:
+                    - db.docker.localdev
         ports:
             - '${DB_EXTERNAL_PORT}:3306'
 
